@@ -2,6 +2,8 @@
 
 A macOS desktop app for converting documents between formats.
 
+![OmniConverter Screenshot](screenshot.png)
+
 ## Download
 
 Grab the latest release from the [Releases page](https://github.com/saadixl/OmniConverter-Desktop/releases).
