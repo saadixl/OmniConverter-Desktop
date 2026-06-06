@@ -6,8 +6,11 @@ import tempfile
 import threading
 from pathlib import Path
 
-from PyQt6.QtCore import Qt, pyqtSignal, QObject
-from PyQt6.QtGui import QFont, QPixmap, QPainter, QPen, QColor
+from PyQt6.QtCore import Qt, pyqtSignal, QObject, QPointF, QRectF
+from PyQt6.QtGui import (
+    QFont, QPixmap, QPainter, QPen, QColor, QIcon,
+    QLinearGradient, QBrush, QPainterPath, QRadialGradient,
+)
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QListWidget, QFileDialog, QCheckBox,
@@ -30,6 +33,95 @@ SURFACE2 = "#585b70"
 MAUVE = "#cba6f7"
 TEAL = "#94e2d5"
 LAVENDER = "#b4befe"
+
+
+def make_app_icon(size=512):
+    """Generate the OmniConverter app icon — two overlapping rounded document
+    shapes with a circular arrow, in the Catppuccin palette."""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(QColor(0, 0, 0, 0))
+    p = QPainter(pixmap)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+    s = size
+
+    # Background rounded square
+    bg_grad = QLinearGradient(0, 0, s, s)
+    bg_grad.setColorAt(0, QColor("#1e1e2e"))
+    bg_grad.setColorAt(1, QColor("#11111b"))
+    bg_path = QPainterPath()
+    bg_path.addRoundedRect(QRectF(0, 0, s, s), s * 0.22, s * 0.22)
+    p.fillPath(bg_path, QBrush(bg_grad))
+
+    # Subtle inner glow
+    glow = QRadialGradient(s * 0.5, s * 0.35, s * 0.6)
+    glow.setColorAt(0, QColor(137, 180, 250, 30))
+    glow.setColorAt(1, QColor(0, 0, 0, 0))
+    p.fillPath(bg_path, QBrush(glow))
+
+    # --- Back document (PDF - mauve) ---
+    doc1 = QPainterPath()
+    dx1, dy1 = s * 0.18, s * 0.15
+    dw1, dh1 = s * 0.38, s * 0.48
+    doc1.addRoundedRect(QRectF(dx1, dy1, dw1, dh1), s * 0.03, s * 0.03)
+    p.fillPath(doc1, QBrush(QColor("#cba6f7")))
+
+    # Lines on back doc
+    pen = QPen(QColor("#1e1e2e"), s * 0.015)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen)
+    for i in range(4):
+        ly = dy1 + dh1 * 0.22 + i * dh1 * 0.15
+        lx1 = dx1 + dw1 * 0.15
+        lx2 = dx1 + dw1 * (0.85 - i * 0.1)
+        p.drawLine(QPointF(lx1, ly), QPointF(lx2, ly))
+
+    # --- Front document (EPUB - accent blue) ---
+    doc2 = QPainterPath()
+    dx2, dy2 = s * 0.42, s * 0.32
+    dw2, dh2 = s * 0.40, s * 0.50
+    doc2.addRoundedRect(QRectF(dx2, dy2, dw2, dh2), s * 0.03, s * 0.03)
+
+    doc2_grad = QLinearGradient(dx2, dy2, dx2 + dw2, dy2 + dh2)
+    doc2_grad.setColorAt(0, QColor("#89b4fa"))
+    doc2_grad.setColorAt(1, QColor("#74c7ec"))
+    p.fillPath(doc2, QBrush(doc2_grad))
+
+    # Lines on front doc
+    pen2 = QPen(QColor("#1e1e2e"), s * 0.015)
+    pen2.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen2)
+    for i in range(4):
+        ly = dy2 + dh2 * 0.2 + i * dh2 * 0.15
+        lx1 = dx2 + dw2 * 0.15
+        lx2 = dx2 + dw2 * (0.85 - i * 0.08)
+        p.drawLine(QPointF(lx1, ly), QPointF(lx2, ly))
+
+    # --- Circular conversion arrow ---
+    cx, cy = s * 0.55, s * 0.58
+    radius = s * 0.18
+    arrow_pen = QPen(QColor("#a6e3a1"), s * 0.035)
+    arrow_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(arrow_pen)
+
+    arc_rect = QRectF(cx - radius, cy - radius, radius * 2, radius * 2)
+    p.drawArc(arc_rect, 30 * 16, 280 * 16)
+
+    # Arrowhead
+    import math
+    angle_rad = math.radians(30)
+    ax = cx + radius * math.cos(angle_rad)
+    ay = cy - radius * math.sin(angle_rad)
+
+    arrow_size = s * 0.06
+    p.drawLine(QPointF(ax, ay), QPointF(ax + arrow_size, ay - arrow_size * 0.3))
+    p.drawLine(QPointF(ax, ay), QPointF(ax + arrow_size * 0.1, ay - arrow_size))
+
+    p.end()
+
+    icon_path = Path(tempfile.gettempdir()) / "omniconverter_icon.png"
+    pixmap.save(str(icon_path))
+    return str(icon_path), pixmap
 
 
 def make_checkmark_icon(color, size=18):
@@ -189,6 +281,9 @@ class OmniConverterApp(QMainWindow):
         self.signals.progress.connect(self._update_progress)
         self.signals.finished.connect(self._finish_convert)
 
+        icon_path, self.icon_pixmap = make_app_icon()
+        self.setWindowIcon(QIcon(icon_path))
+
         check_path = make_checkmark_icon(BG_DIM)
         self.setStyleSheet(GLOBAL_STYLE.replace("CHECKMARK_PATH", check_path))
         self._build_ui()
@@ -214,13 +309,29 @@ class OmniConverterApp(QMainWindow):
         root.setSpacing(14)
 
         # --- Header ---
+        header_row = QHBoxLayout()
+        header_row.setSpacing(14)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(self.icon_pixmap.scaled(
+            48, 48, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation))
+        icon_label.setFixedSize(48, 48)
+        header_row.addWidget(icon_label)
+
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
         title = QLabel("OmniConverter")
         title.setFont(QFont("Helvetica Neue", 22, QFont.Weight.Bold))
-        root.addWidget(title)
+        title_col.addWidget(title)
 
         subtitle = QLabel("Convert documents between formats")
         subtitle.setStyleSheet(f"color: {FG_DIM}; font-size: 12px;")
-        root.addWidget(subtitle)
+        title_col.addWidget(subtitle)
+
+        header_row.addLayout(title_col)
+        header_row.addStretch()
+        root.addLayout(header_row)
 
         # ===================== INPUT FILES CARD =====================
         input_card = self._make_card()
@@ -526,6 +637,8 @@ class OmniConverterApp(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+    icon_path, _ = make_app_icon()
+    app.setWindowIcon(QIcon(icon_path))
     window = OmniConverterApp()
     window.show()
     sys.exit(app.exec())
