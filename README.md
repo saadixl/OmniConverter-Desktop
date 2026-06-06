@@ -2,17 +2,35 @@
 
 A macOS desktop app for converting documents between formats.
 
-## Setup
+## Download
 
+Grab the latest release from the [Releases page](https://github.com/saadixl/OmniConverter-Desktop/releases).
+
+### Installation
+
+1. Download `OmniConverter-macOS-arm64.zip` from the latest release
+2. Unzip it
+3. Move `OmniConverter.app` to your Applications folder
+
+### macOS Gatekeeper notice
+
+Since the app is not signed with an Apple Developer certificate, macOS will block it on first launch with a message like:
+
+> Apple could not verify "OmniConverter" is free of malware
+
+To open it, do **one** of the following:
+
+**Option A** — Right-click to open:
+1. Right-click (or Control-click) on `OmniConverter.app`
+2. Click **Open**
+3. Click **Open** again in the confirmation dialog
+
+**Option B** — Remove the quarantine flag via Terminal:
 ```bash
-pip install -r requirements.txt
+xattr -cr /Applications/OmniConverter.app
 ```
 
-## Run
-
-```bash
-python3 app.py
-```
+After either step, the app will open normally from then on.
 
 ## Features
 
@@ -31,11 +49,20 @@ python3 app.py
 | TXT (`.txt`) | PDF (`.pdf`)   |
 | HTML (`.html`, `.htm`) | |
 
-## Package as .app (optional)
+## Development
+
+### Run from source
+
+```bash
+pip install -r requirements.txt
+python3 app.py
+```
+
+### Build the .app bundle
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed app.py
+python3 -m PyInstaller --noconfirm OmniConverter.spec
 ```
 
 The `.app` bundle will be in `dist/`.
